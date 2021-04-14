@@ -57,7 +57,7 @@ fn main() {
             String::from_str("beef").unwrap(),
         ),
     );
-    let result = chat_tui::build_messages_string_arr(test_vec, 5, 8);
+    let result = chat_tui::build_messages_string_arr(test_vec, 8, 5);
     for res in result {
         println!("{}", res);
     }

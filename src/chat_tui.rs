@@ -53,13 +53,50 @@ impl fmt::Display for Message {
 /// 
 /// # Arguments
 /// 
-/// `messages: Vec<Message>` - list of messages sorted in newest first order
-/// `max_line_len` - maximum result line length
-pub fn build_messages_string_arr(messages: Vec<Message>, max_line_len: usize, max_lines: usize) -> Vec<String> {
+/// * `messages: Vec<Message>` - list of messages sorted in newest first order
+/// * `max_rows` - number of lines after exceeding which it stops adding messages.
+/// Does not guarantee that result (in lines) will be shorter than this value, it
+/// is used for optimization purposes to not add unnecessary lines.
+/// * `columns` - maximum result line length
+/// 
+/// # Examples
+/// This program constructs lines of messages for frame
+/// with size 8x5 and prints them.
+/// ```
+/// mod chat_tui;
+/// 
+/// use std::str::FromStr;
+/// 
+/// 
+/// fn main() {
+///     let test_vec = vec!(
+///         chat_tui::Message::from_raw(
+///             String::from_str("123").unwrap(), 
+///             String::from_str("aboba").unwrap(), 
+///             String::from_str("ABOBA").unwrap(),
+///         ),
+///         chat_tui::Message::from_raw(
+///             String::from_str("122").unwrap(), 
+///             String::from_str("cock").unwrap(), 
+///             String::from_str("cam").unwrap(),
+///         ),
+///         chat_tui::Message::from_raw(
+///             String::from_str("32").unwrap(), 
+///             String::from_str("cockerel").unwrap(), 
+///             String::from_str("beef").unwrap(),
+///         ),
+///     );
+///     let result = chat_tui::build_messages_string_arr(test_vec, 8, 5);
+///     for res in result {
+///         println!("{}", res);
+///     }
+/// }
+/// ```
+pub fn build_messages_string_arr(messages: Vec<Message>, max_rows: usize, columns: usize) -> Vec<String> {
     let mut result = vec!();
     for msg in messages {
         // Stop on exceeding terminal frame
-        if result.len() >= max_lines {
+        if result.len() >= max_rows {
             break;
         }
 
@@ -69,8 +106,8 @@ pub fn build_messages_string_arr(messages: Vec<Message>, max_line_len: usize, ma
         // TODO proper length operation to work with multibyte
         // characters properly
 
-        for i in (0..msg_string.len()).step_by(max_line_len) {
-            let mut end_index = i+max_line_len;
+        for i in (0..msg_string.len()).step_by(columns) {
+            let mut end_index = i+columns;
             if end_index >= msg_string.len() {
                 end_index = msg_string.len();
             }
@@ -83,7 +120,8 @@ pub fn build_messages_string_arr(messages: Vec<Message>, max_line_len: usize, ma
     result
 }
 
-/// Writes messages within specified frame
+/// Writes messages within specified frame. Assumes that cursor is located at the
+/// lower left corner of the frame.
 fn add_messages() {
 
 }

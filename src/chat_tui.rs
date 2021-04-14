@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::io::stdout;
 use std::fmt;
+use std::str::FromStr;
 use crossterm::cursor::{
     MoveToPreviousLine, 
     MoveToNextLine, 
@@ -22,10 +23,20 @@ impl fmt::Display for Timestamp {
     }
 }
 
-struct Message {
+pub struct Message {
     timestamp: Timestamp,
     author: String,
     contents: String,
+}
+
+impl Message {
+    pub fn from_raw(time: String, author: String, contents: String) -> Message{
+        Message {
+            timestamp: Timestamp{time},
+            author,
+            contents,
+        }
+    }
 }
 
 impl fmt::Display for Message {
@@ -34,16 +45,45 @@ impl fmt::Display for Message {
     }
 }
 
-/// Builds vector of strings with
+/// Builds vector of strings with messages in reverse order
+/// of arrival (newest - last) and in sequental order within
+/// a message. Those lines do not exceed `max_line_len` by
+/// 
 /// Requires messages sorted in order of newest first
-fn build_messages_string_arr(messages: Vec<Message>, max_line_len: usize) -> Vec<String> {
-    let result = vec!();
+/// 
+/// # Arguments
+/// 
+/// `messages: Vec<Message>` - list of messages sorted in newest first order
+/// `max_line_len` - maximum result line length
+pub fn build_messages_string_arr(messages: Vec<Message>, max_line_len: usize, max_lines: usize) -> Vec<String> {
+    let mut result = vec!();
     for msg in messages {
+        // Stop on exceeding terminal frame
+        if result.len() >= max_lines {
+            break;
+        }
+
         let msg_string: String = format!("{}", msg);
+        let mut msg_vector = vec!();
+
+        // TODO proper length operation to work with multibyte
+        // characters properly
+
+        for i in (0..msg_string.len()).step_by(max_line_len) {
+            let mut end_index = i+max_line_len;
+            if end_index >= msg_string.len() {
+                end_index = msg_string.len();
+            }
+            // This will likely to panic in case of multi-byte characters
+            msg_vector.push(String::from_str(&msg_string[i..end_index]).unwrap());
+        }
+        msg_vector.append(&mut result);
+        result = msg_vector;
     }
-    vec!(String::new())
+    result
 }
 
+/// Writes messages within specified frame
 fn add_messages() {
 
 }
@@ -122,7 +162,7 @@ pub fn draw_window(messages: Vec<Message>) {
 
 pub fn draw_window_contin() {
     loop {
-        draw_window();
+        // draw_window();
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }

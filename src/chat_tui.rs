@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::io::stdout;
+use std::io::{stdout, stdin};
 use std::fmt;
 use std::str::FromStr;
 use crossterm::cursor::{
@@ -9,6 +9,7 @@ use crossterm::cursor::{
     SavePosition, 
     RestorePosition
 };
+use crossterm::terminal::{Clear, ClearType};
 use crossterm::execute;
 use crossterm::queue;
 use crossterm::style::Print;
@@ -23,6 +24,14 @@ impl fmt::Display for Timestamp {
     }
 }
 
+impl Clone for Timestamp {
+    fn clone(&self) -> Timestamp {
+        Timestamp {
+            time: self.time.clone(),
+        }
+    }
+}
+
 pub struct Message {
     timestamp: Timestamp,
     author: String,
@@ -30,9 +39,16 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn from_raw(time: String, author: String, contents: String) -> Message{
+    pub fn from_strings(time: String, author: String, contents: String) -> Message{
         Message {
             timestamp: Timestamp{time},
+            author,
+            contents,
+        }
+    }
+    fn from_raw(timestamp: Timestamp, author: String, contents: String) -> Message{
+        Message {
+            timestamp,
             author,
             contents,
         }
@@ -45,9 +61,16 @@ impl fmt::Display for Message {
     }
 }
 
+impl Clone for Message {
+    fn clone(&self) -> Message {
+        Message::from_raw(self.timestamp.clone(), self.author.clone(), self.contents.clone())
+    }
+}
+
 /// Builds vector of strings with messages in reverse order
 /// of arrival (newest - last) and in sequental order within
-/// a message. Those lines do not exceed `max_line_len` by
+/// a message. Those lines do not exceed `columns` by using
+/// line break.
 /// 
 /// Requires messages sorted in order of newest first
 /// 
@@ -92,7 +115,7 @@ impl fmt::Display for Message {
 ///     }
 /// }
 /// ```
-pub fn build_messages_string_arr(messages: Vec<Message>, max_rows: usize, columns: usize) -> Vec<String> {
+pub fn build_messages_string_list(messages: Vec<Message>, max_rows: usize, columns: usize) -> Vec<String> {
     let mut result = vec!();
     for msg in messages {
         // Stop on exceeding terminal frame
@@ -121,9 +144,24 @@ pub fn build_messages_string_arr(messages: Vec<Message>, max_rows: usize, column
 }
 
 /// Writes messages within specified frame. Assumes that cursor is located at the
-/// lower left corner of the frame.
-fn add_messages() {
-
+/// lower left corner of the frame. Leaves cursor at the same column of upper line.
+fn add_messages(messages: Vec<Message>, max_rows: usize, columns: usize) {
+    let messages_list = build_messages_string_list(messages, max_rows, columns);
+    let messages_list_iter = messages_list.into_iter().rev();
+    let start_column = crossterm::cursor::position().unwrap().0;
+    let mut cur_line = 0;
+    for msg in messages_list_iter {
+        if cur_line >= max_rows {
+            break;
+        }
+        queue!(
+            stdout(),
+            Print(msg),
+            MoveToColumn(start_column),
+            MoveToPreviousLine(1)
+        ).unwrap();
+        cur_line += 1;
+    }
 }
 
 /// Adds commands to move one line up and go to the first column
@@ -133,7 +171,7 @@ fn add_up_home() {
         stdout(),
         MoveToPreviousLine(1),
         MoveToColumn(0),
-    );
+    ).unwrap();
 }
 
 /// Adds command to write separating line for the whole row
@@ -142,7 +180,7 @@ fn add_delimiter_line(columns: usize) {
     queue!(
         stdout(), 
         Print("-".repeat(columns)),
-    );
+    ).unwrap();
 }
 
 /// Adds command to draw line for contents in the queue.
@@ -150,7 +188,7 @@ fn add_empty_line(columns: u16) {
     queue!(
         stdout(),
         MoveToColumn(columns),
-    ); 
+    ).unwrap(); 
 }
 
 
@@ -160,33 +198,36 @@ pub fn draw_window(messages: Vec<Message>) {
     queue!(
         stdout(), 
         crossterm::terminal::SetSize(columns_u16, rows_u16)
-    );
-    let columns: usize = columns_u16.into();
+    ).unwrap();
+    let (columns, rows): (usize, usize) = (columns_u16.into(), rows_u16.into());
     queue!(
         stdout(), 
         SavePosition,
+    ).unwrap();
+    // Move to the first column of line after input field
+    move_cursor_to_input_field();
+    queue!(
+        stdout(),
         MoveToNextLine(1),
         MoveToColumn(0),
-    );
+    ).unwrap();
     add_delimiter_line(columns);
     add_up_home();
     add_empty_line(columns_u16);
     add_up_home();
     add_delimiter_line(columns);
     add_up_home();
+    
+    // Erase old messages
+    queue!(
+        stdout(),
+        Clear(ClearType::CurrentLine),
+        Clear(ClearType::FromCursorUp),
+    ).unwrap();
 
     // Write messages
-    for i in 1..rows_u16-3 {
-        if i == 4 {
-            queue!(
-                stdout(), 
-                Print("Multiline\ncursor\ntest"),
-                Print("Können"),
-            );
-        }
-        add_empty_line(columns_u16);
-        add_up_home();
-    }
+    add_messages(messages, rows-3, columns);
+    add_up_home();
 
     add_delimiter_line(columns);
     add_up_home();
@@ -194,15 +235,8 @@ pub fn draw_window(messages: Vec<Message>) {
     queue!(
         stdout(),
         RestorePosition
-    );
+    ).unwrap();
     stdout().flush().unwrap();
-}
-
-pub fn draw_window_contin() {
-    loop {
-        // draw_window();
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-    }
 }
 
 pub fn move_cursor_to_input_field() {
@@ -210,5 +244,41 @@ pub fn move_cursor_to_input_field() {
     execute!(
         stdout(), 
         crossterm::cursor::MoveTo(0, rows_u16-2)
-    );
+    ).unwrap();
+}
+
+pub fn clear_input_field() {
+    execute!(
+        stdout(),
+        SavePosition,
+    ).unwrap();
+    move_cursor_to_input_field();
+    execute!(
+        stdout(),
+        Clear(ClearType::CurrentLine),
+        RestorePosition,
+    ).unwrap();
+}
+
+pub fn open_window() {
+    execute!(
+        stdout(), 
+        crossterm::terminal::EnterAlternateScreen
+    ).unwrap();
+
+    move_cursor_to_input_field();
+}
+
+pub fn close_window() {
+    execute!(
+        stdout(), 
+        crossterm::terminal::LeaveAlternateScreen
+    ).unwrap();
+}
+
+pub fn read_input_line(buf: &mut String) -> std::io::Result<usize> {
+    let result = stdin().read_line(buf);
+    clear_input_field();
+    move_cursor_to_input_field();
+    result
 }

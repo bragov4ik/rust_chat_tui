@@ -1,7 +1,27 @@
-use std::io::Write;
-use std::io::{stdout, stdin};
+//! # Chat-tui
+//! It is a module that provides very simple terminal user interface
+//! designed for chat application.
+//! # Getting started
+//! Before using the module, it is required to execute function 
+//! `open_window()`, which opens terminal's alternative screen
+//! and does other preparations.
+//! 
+//! After finishing working with the module, `close_window()`
+//! will close the alternative screen, leaving the user at the
+//! same position in main terminal screen as before `open_window()`.
+//! 
+//! Main function of the module - `draw_window` which outputs
+//! all given messages that fit onto the screen.
+//! 
+//! # Known problems
+//! * Changing size of the terminal breaks the interface until
+//! next `draw_window()`.
+//! 
+
+use std::io::{stdout, stdin, Write};
 use std::fmt;
 use std::str::FromStr;
+
 use crossterm::cursor::{
     MoveToPreviousLine, 
     MoveToNextLine, 

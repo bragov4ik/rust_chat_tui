@@ -135,7 +135,7 @@ impl Clone for Message {
 ///     }
 /// }
 /// ```
-pub fn build_messages_string_list(messages: Vec<Message>, max_rows: usize, columns: usize) -> Vec<String> {
+pub fn build_messages_string_list<T: fmt::Display>(messages: Vec<T>, max_rows: usize, columns: usize) -> Vec<String> {
     let mut result = vec!();
     for msg in messages {
         // Stop on exceeding terminal frame
@@ -165,7 +165,7 @@ pub fn build_messages_string_list(messages: Vec<Message>, max_rows: usize, colum
 
 /// Writes messages within specified frame. Assumes that cursor is located at the
 /// lower left corner of the frame. Leaves cursor at the same column of upper line.
-fn add_messages(messages: Vec<Message>, max_rows: usize, columns: usize) {
+fn add_messages<T: fmt::Display>(messages: Vec<T>, max_rows: usize, columns: usize) {
     let messages_list = build_messages_string_list(messages, max_rows, columns);
     let messages_list_iter = messages_list.into_iter().rev();
     let start_column = crossterm::cursor::position().unwrap().0;
@@ -211,8 +211,14 @@ fn add_empty_line(columns: u16) {
     ).unwrap(); 
 }
 
-
-pub fn draw_window(messages: Vec<Message>) {
+/// Draws window with provided messages
+/// 
+/// # Arguments
+/// 
+/// * `messages` - vector with entries of any type that implement [`Display`](https://doc.rust-lang.org/std/fmt/trait.Display.html) trait ordered by newest.
+/// Newest message will be printed at the bottom of the screen.
+/// 
+pub fn draw_window<T: fmt::Display>(messages: Vec<T>) {
 
     let (columns_u16, rows_u16) = crossterm::terminal::size().unwrap();
     queue!(
@@ -259,7 +265,7 @@ pub fn draw_window(messages: Vec<Message>) {
     stdout().flush().unwrap();
 }
 
-pub fn move_cursor_to_input_field() {
+fn move_cursor_to_input_field() {
     let rows_u16 = crossterm::terminal::size().unwrap().1;
     execute!(
         stdout(), 
